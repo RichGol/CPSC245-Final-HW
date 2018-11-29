@@ -30,7 +30,7 @@ class UserThrownObject {
 		if (weight > 0) {
 			this.weight = weight;
 		} else {
-			this.weight = 1.5*length;	//Throwing knives typically weigh 1.5 ounces per inch
+			this.weight = 1.5*(length/2.54);	//Throwing knives typically weigh 1.5 ounces per inch
 		}
 	}
 	public int getPointsEarned() {
@@ -47,20 +47,32 @@ class UserThrownObject {
 		setPointsEarned(0);
 	}
 	public UserThrownObject() {
-		this(7.8125,0);	//Sets an average throwing knife length, sets the weight according to the length
-	}
-
-/*
-	public int[] throwObject(int x, int y) {
-		Random rnd = new Random();
-		double throwStrength = rnd.nextDouble()+.51;	//Generates a random strength for the throw as a percentage in the range [0.5-1.5]
-		
-		int endX = rnd.nextInt(20)-10 + x;	//The object will land within 20px of where it is targeted to land
-		
-		int endY = 
+		this(7.8125,0);	//Sets an average throwing knife length in inches, sets the weight according to the length
 	}
 	
-*/
+	public int[] throwObject(int x, int y, int throwStrength) {
+		Random rnd = new Random();
+		double[] strDropVals = new double[10];
+		for (int i = 0; i < 10; i++) {
+			strDropVals[i] = (.39077 + ((1.16-.39077)/9)*(i));
+		}
+		/*	This list of values will be used to determine how much/little drop the throwing knife will
+		 * 		have in the game. The index of one is pulled based on how long the user holds the mouse
+		 * 		button down.
+		 * 	The list is sorted strongest power to weakest power, the knife will fly up for higher powers and
+		 * 		down for weak powers (as if it were influenced by gravity).
+		 * 	Numbers were chosen based on a translation matrix which would move the starting point of the knife
+		 * 		to the top of the target (index 10), and another transition matrix which would move the starting
+		 * 		point of the knife to the bottom of the target (index 0). Then the range was used to determine
+		 * 		
+		 */
+		
+		int endX = rnd.nextInt(20)-10 + x;	//The object will land within 20px of either side from what the user targets
+		int endY = (int)(y*strDropVals[throwStrength]+2);
+		int[] retArray = {endX, endY};
+		return retArray;
+	}
+	
 	public String toString() {
 		return String.format("Length: %07.4f in\nWeight: %07.4f ounces\n",length,weight);
 	}
@@ -81,30 +93,44 @@ class ThrownObjectTarget {
 		}
 	}
 	public ThrownObjectTarget() {
-		setDistance(3);	//Sets the distance to a reasonable 3 meters (~9.85 ft) from the player to the target
+		setDistance(2);	//Sets the distance to a reasonable 2 meters (~6.56 ft) from the player to the target
 	}
-	public int getPointZone(int x, int y) {
-		if (x <= -8 && x >= 8) {
+	public int getPointZone(int[] hitLoc) {
+		int x = hitLoc[0];
+		System.out.println(x);
+		int y = hitLoc[1];
+		System.out.println(y);
+		if ((x>=46 && x<=54) && (y>=46 && y<=54)) {	//in the 10-point range
 			return 10;
-		} else if (x <= -12 && x >= 12) {
+		}
+		else if ((x>=42 && x<=58) && (y>=42 && y<=58)) {	//in the 9-point range
 			return 9;
-		} else if (x <= -16 && x >= 16) {
+		}
+		else if ((x>=38 && x<=62) && (y>=38 && y<=62)) {	//in the 8-point range
 			return 8;
-		} else if (x <= -20 && x >= 20) {
+		}
+		else if ((x>=34 && x<=66) && (y>=34 && y<=66)) {	//in the 7-point range
 			return 7;
-		} else if (x <= -24 && x >= 24) {
+		}
+		else if ((x>=30 && x<=70) && (y>=30 && y<=70)) {	//in the 6-point range
 			return 6;
-		} else if (x <= -28 && x >= 28) {
+		}
+		else if ((x>=26 && x<=74) && (y>=26 && y<=74)) {	//in the 5-point range
 			return 5;
-		} else if (x <= -32 && x >= 32) {
+		}
+		else if ((x>=22 && x<=78) && (y>=22 && y<=78)) {	//in the 4-point range
 			return 4;
-		} else if (x <= -36 && x >= 36) {
+		}
+		else if ((x>=18 && x<=82) && (y>=18 && y<=82)) {	//in the 3-point range
 			return 3;
-		} else if (x <= -40 && x >= 40) {
+		}
+		else if ((x>=14 && x<=86) && ((y>=14 && y<=86))) {	//in the 2-point range
 			return 2;
-		} else if (x <= -44 && x >= 44) {
+		}
+		else if ((x>=10 && x<=90) && ((y>=10 && y<=90))) {	//in the 1-point range
 			return 1;
-		} else {
+		}
+		else {	//Out of target
 			return 0;
 		}
 	}
@@ -115,7 +141,9 @@ public class UIGameMVC {
 		System.out.println("Hello World!");
 		UserThrownObject obj1 = new UserThrownObject();
 		UserThrownObject obj2 = new UserThrownObject(6,0);
+		ThrownObjectTarget tarObj = new ThrownObjectTarget();
 		System.out.println(obj1);
 		System.out.println(obj2);
+		System.out.println(tarObj.getPointZone(obj1.throwObject(50, 50, 8)));
 	}
 }
