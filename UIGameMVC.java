@@ -1,13 +1,22 @@
 import java.util.ArrayList;
 import java.util.Random;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Container;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.Graphics;
 
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.Timer;
 
 /*Model class for objects to be thrown at the target in the game*/
 class UserThrownObject {
@@ -77,6 +86,11 @@ class UserThrownObject {
 		 */
 		
 		int endX = rnd.nextInt(20)-10 + x;	//The object will land within 20px of either side from what the user targets
+		if (throwStrength > 9) {
+			throwStrength = 9;
+		} else if (throwStrength < 0) {
+			throwStrength = 0;
+		}
 		int endY = (int)(y*strDropVals[throwStrength]+2);
 		int[] retArray = {endX, endY};
 		return retArray;
@@ -89,6 +103,8 @@ class UserThrownObject {
 /*Model class for the target which the user will throw objects at in the game*/
 class ThrownObjectTarget {
 	private double distance;	//Distance from player to target in meters, for easier calculations
+	private int leftX;
+	private int topY;	
 	
 	public double getDistance() {
 		return distance;
@@ -100,8 +116,31 @@ class ThrownObjectTarget {
 			distance = 2;
 		}
 	}
-	public ThrownObjectTarget() {
+	public int getLeftX() {
+		return leftX;
+	}
+	public void setLeftX(int x) {
+		if (x > 0) {
+			leftX = x;
+		} else {
+			leftX = 0;
+		}
+	}
+	public int getTopY() {
+		return topY;
+	}
+	public void setTopY(int y) {
+		if (y > 0) {
+			topY = y;
+		} else {
+			topY = 0;
+		}
+	}
+	
+	public ThrownObjectTarget(int x, int y) {
 		setDistance(2);	//Sets the distance to a reasonable 2 meters (~6.56 ft) from the player to the target
+		setLeftX(x);
+		setTopY(y);
 	}
 	public int getPointZone(int[] hitLoc) {
 		int x = hitLoc[0];
@@ -142,22 +181,30 @@ class ThrownObjectTarget {
 	}
 }
 /*Controller class for interactions between UserThrownObject and ThrownObjectTarget*/
-class ObjectTargetWindowController {
+class ObjectTargetWindowController implements MouseListener,ActionListener {
 	private ArrayList<UserThrownObject> throwObjects;
 	private int objectsThrown;
 	private ThrownObjectTarget targetObject;
+	private MainFrame mf;
+	private Timer tim;
+	private int clickStr;
 	
-	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects, ThrownObjectTarget targetObject) {
+	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects) {
 		this.throwObjects = throwObjects;
-		this.targetObject = targetObject;
+		mf = new MainFrame(this);
+		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY());
 		objectsThrown = 0;
+		mf.setVisible(true);
+		clickStr = 0;
+		tim = new Timer(200,this);
 	}
 	public void performThrow(int x, int y, int throwStrength) {
-		int[] finalPoint = throwObjects.get(objectsThrown).throwObject(x, y, throwStrength);
-		throwObjects.get(objectsThrown).setPointsEarned(targetObject.getPointZone(finalPoint));
-		throwObjects.get(objectsThrown).setIsThrown(true);
-		System.out.println(throwObjects.get(objectsThrown));
-		System.out.println(throwObjects.get(objectsThrown).getPointsEarned());
+		UserThrownObject tmpObj = throwObjects.get(objectsThrown);
+		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength);
+		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint));
+		tmpObj.setIsThrown(true);
+/*		System.out.println(tmpObj);
+		System.out.println(tmpObj.getPointsEarned()); REMOVE*/
 		objectsThrown += 1;
 	}
 	public float tallyPointsAsPercentage() {
@@ -180,14 +227,148 @@ class ObjectTargetWindowController {
 		}
 		return pointCount;
 	}
+	
+	//MouseListener Functions
+	public void mouseEntered(MouseEvent e) {}
+	public void mouseExited(MouseEvent e) {}
+	public void mouseClicked(MouseEvent e) {}
+	public void mousePressed(MouseEvent e) {
+		if (!tim.isRunning()) {
+			clickStr = 0;
+			tim.start();
+			System.out.println("Click");
+		}
+	}
+	public void mouseReleased(MouseEvent e) {
+		if (tim.isRunning()) {
+			tim.stop();
+			System.out.println("Release" + " " + clickStr);
+			if (!(objectsThrown > (throwObjects.size()-1))) {
+				performThrow(e.getX(),e.getY(),clickStr);
+				System.out.println("THROW!");
+			}
+			
+		}
+	}
+	
+	//ActionListener Functions
+	public void actionPerformed(ActionEvent e) {
+		clickStr += 1;
+	}
 } 
+/*View Class for Scores*/
+class ScorePanel extends JPanel {
+	private ArrayList<Integer> scores;
+	private JLabel lastScoreDisp;
+	private JLabel runningScoreDisp;
+	private int runningScore;
+	private int lastScore;
+	
+	public ArrayList<Integer> getScores() {
+		return scores;
+	}
+	public void addScore(int score) {
+		scores.add(score);
+	}
+	public void clearScore() {
+		scores.clear();
+	}
+	public void setLastScoreDisp() {
+		if (lastScore > 0) {
+			lastScoreDisp.setText(String.format("Last Score: %d",lastScore));
+		} else {
+			lastScoreDisp.setText("Last Score: N/A");
+		}
+	}
+	public void setLastScore(int score) {
+		runningScore += score;
+	}
+	public void setRunningScoreDisp() {
+		if (runningScore > 0) {
+			runningScoreDisp.setText(String.format("Running Score: %d",runningScore));
+		} else {
+			runningScoreDisp.setText("Running Score: N/A");
+		}
+	}
+	public void addToRunningScore(int score) {
+		runningScore += score;
+	}
+	
+	public ScorePanel() {
+		scores = new ArrayList<Integer>();
+		lastScoreDisp = new JLabel("Last Score: N/A");
+		runningScoreDisp = new JLabel("Running Score: N/A");
+		add(lastScoreDisp);
+		add(runningScoreDisp);
+	}
+	public void paintComponent(Graphics g) {
+		super.paintComponent(g);
+		setRunningScoreDisp();
+		setLastScoreDisp();
+	}
+}
+/*View Class for The Target Model*/
+class TargetPanel extends JPanel {
+	private int centerX;
+	private int centerY;
+
+	public int getLeftX() {
+		return centerX-40;
+	}
+	public int getTopY() {
+		return centerY-40;
+	}
+	public TargetPanel(ObjectTargetWindowController ctrl) {
+		addMouseListener(ctrl);
+	}
+	public void paintComponent(Graphics g) {
+		centerX = getWidth()/2;
+		centerY = getHeight()/2;
+/*		System.out.println(centerX + " " + centerY);	REMOVE*/
+		g.fillRect(centerX-40,centerY-40,80,80);
+		for (int i = 0; i < 11; i++) {
+			if (i < 2) {
+				g.setColor(Color.WHITE);
+			} else if (i < 4) {
+				g.setColor(Color.BLACK);
+			} else if (i < 6) {
+				g.setColor(Color.BLUE);
+			} else if (i < 8) {
+				g.setColor(Color.RED);
+			} else {
+				g.setColor(Color.YELLOW);
+			}
+			g.fillOval((centerX-40)+4*i,(centerY-40)+4*i,80-(8*i),+80-(8*i));
+			g.setColor(Color.BLACK);
+			g.drawOval((centerX-40)+4*i,(centerY-40)+4*i,80-(8*i),+80-(8*i));
+		}
+	}
+}
+
 /*View Class for displaying the UI window*/
 class MainFrame extends JFrame {
-	public MainFrame() {
+	private TargetPanel tarPan;
+	
+	public TargetPanel getTargetPanel() {
+		return tarPan;
+	}
+	public MainFrame(ObjectTargetWindowController ctrl) {
 		//basics
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setBounds(100,100,400,400);
-		setTitle("V a0.0001 - GUI Version");
+		setTitle("Version beta 3 - GUI Version");
+		
+		//BorderLayout Configuration
+		Container c = getContentPane();
+		c.setLayout(new BorderLayout());
+		
+			//BorderLayout.SOUTH
+		ScorePanel scorePan = new ScorePanel();
+		c.add(scorePan,BorderLayout.SOUTH);
+		
+			//BorderLayout.CENTER
+		tarPan = new TargetPanel(ctrl);
+		c.add(tarPan,BorderLayout.CENTER);
 		
 		//menu
 		JMenuBar bar = new JMenuBar();
@@ -210,14 +391,8 @@ public class UIGameMVC {
 		ArrayList<UserThrownObject> throwObjectsHeld = new ArrayList<UserThrownObject>();
 		throwObjectsHeld.add(new UserThrownObject());
 		throwObjectsHeld.add(new UserThrownObject(6,0));
-		ThrownObjectTarget tarObj = new ThrownObjectTarget();
-		ObjectTargetWindowController con1 = new ObjectTargetWindowController(throwObjectsHeld,tarObj);
-		for (int i = 0; i < throwObjectsHeld.size(); i++) {
-			con1.performThrow(20,50,3);
-		}
-		System.out.println(con1.tallyPointsAsPercentage());
-		
-		MainFrame mf = new MainFrame();
-		mf.setVisible(true);
+		throwObjectsHeld.add(new UserThrownObject());
+		ObjectTargetWindowController con1 = new ObjectTargetWindowController(throwObjectsHeld);
+		/*System.out.println(con1.tallyPointsAsPercentage()); REMOVE*/
 	}
 }
