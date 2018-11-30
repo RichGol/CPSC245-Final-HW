@@ -1,6 +1,14 @@
 import java.util.ArrayList;
 import java.util.Random;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+
 /*Model class for objects to be thrown at the target in the game*/
 class UserThrownObject {
 	private boolean isThrown;	//Monitor which instances have been 'Thrown' by the user
@@ -78,7 +86,6 @@ class UserThrownObject {
 		return String.format("Length: %07.4f cm\nWeight: %07.4f ounces\n",length,weight);
 	}
 }
-
 /*Model class for the target which the user will throw objects at in the game*/
 class ThrownObjectTarget {
 	private double distance;	//Distance from player to target in meters, for easier calculations
@@ -134,6 +141,7 @@ class ThrownObjectTarget {
 		}
 	}
 }
+/*Controller class for interactions between UserThrownObject and ThrownObjectTarget*/
 class ObjectTargetWindowController {
 	private ArrayList<UserThrownObject> throwObjects;
 	private int objectsThrown;
@@ -173,6 +181,30 @@ class ObjectTargetWindowController {
 		return pointCount;
 	}
 } 
+/*View Class for displaying the UI window*/
+class MainFrame extends JFrame {
+	public MainFrame() {
+		//basics
+		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		setBounds(100,100,400,400);
+		setTitle("V a0.0001 - GUI Version");
+		
+		//menu
+		JMenuBar bar = new JMenuBar();
+		
+		JMenu mnuFile = new JMenu("File");
+		JMenuItem miExit = new JMenuItem("Exit");
+		miExit.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				System.exit(0);
+			}
+		});
+		mnuFile.add(miExit);
+		bar.add(mnuFile);
+		setJMenuBar(bar);
+	}
+}
+
 public class UIGameMVC {
 	public static void main(String[] args) {
 		ArrayList<UserThrownObject> throwObjectsHeld = new ArrayList<UserThrownObject>();
@@ -184,5 +216,8 @@ public class UIGameMVC {
 			con1.performThrow(20,50,3);
 		}
 		System.out.println(con1.tallyPointsAsPercentage());
+		
+		MainFrame mf = new MainFrame();
+		mf.setVisible(true);
 	}
 }
