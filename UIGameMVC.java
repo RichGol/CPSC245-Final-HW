@@ -1,3 +1,4 @@
+import java.util.ArrayList;
 import java.util.Random;
 
 /*Model class for objects to be thrown at the target in the game*/
@@ -74,7 +75,7 @@ class UserThrownObject {
 	}
 	
 	public String toString() {
-		return String.format("Length: %07.4f in\nWeight: %07.4f ounces\n",length,weight);
+		return String.format("Length: %07.4f cm\nWeight: %07.4f ounces\n",length,weight);
 	}
 }
 
@@ -97,9 +98,7 @@ class ThrownObjectTarget {
 	}
 	public int getPointZone(int[] hitLoc) {
 		int x = hitLoc[0];
-		System.out.println(x);
 		int y = hitLoc[1];
-		System.out.println(y);
 		if ((x>=46 && x<=54) && (y>=46 && y<=54)) {	//in the 10-point range
 			return 10;
 		}
@@ -135,15 +134,55 @@ class ThrownObjectTarget {
 		}
 	}
 }
-
+class ObjectTargetWindowController {
+	private ArrayList<UserThrownObject> throwObjects;
+	private int objectsThrown;
+	private ThrownObjectTarget targetObject;
+	
+	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects, ThrownObjectTarget targetObject) {
+		this.throwObjects = throwObjects;
+		this.targetObject = targetObject;
+		objectsThrown = 0;
+	}
+	public void performThrow(int x, int y, int throwStrength) {
+		int[] finalPoint = throwObjects.get(objectsThrown).throwObject(x, y, throwStrength);
+		throwObjects.get(objectsThrown).setPointsEarned(targetObject.getPointZone(finalPoint));
+		throwObjects.get(objectsThrown).setIsThrown(true);
+		System.out.println(throwObjects.get(objectsThrown));
+		System.out.println(throwObjects.get(objectsThrown).getPointsEarned());
+		objectsThrown += 1;
+	}
+	public float tallyPointsAsPercentage() {
+		int pointCount = 0;
+		int totalPoints = 0;
+		for (UserThrownObject ut : throwObjects) {
+			if (ut.getIsThrown()) {
+				pointCount += ut.getPointsEarned();
+				totalPoints += 10;
+			}
+		}
+		return (float)((double)(pointCount)/(double)(totalPoints));
+	}
+	public int tallyPointsRaw() {
+		int pointCount = 0;
+		for (UserThrownObject ut : throwObjects) {
+			if (ut.getIsThrown()) {
+				pointCount += ut.getPointsEarned();
+			}
+		}
+		return pointCount;
+	}
+} 
 public class UIGameMVC {
 	public static void main(String[] args) {
-		System.out.println("Hello World!");
-		UserThrownObject obj1 = new UserThrownObject();
-		UserThrownObject obj2 = new UserThrownObject(6,0);
+		ArrayList<UserThrownObject> throwObjectsHeld = new ArrayList<UserThrownObject>();
+		throwObjectsHeld.add(new UserThrownObject());
+		throwObjectsHeld.add(new UserThrownObject(6,0));
 		ThrownObjectTarget tarObj = new ThrownObjectTarget();
-		System.out.println(obj1);
-		System.out.println(obj2);
-		System.out.println(tarObj.getPointZone(obj1.throwObject(50, 50, 8)));
+		ObjectTargetWindowController con1 = new ObjectTargetWindowController(throwObjectsHeld,tarObj);
+		for (int i = 0; i < throwObjectsHeld.size(); i++) {
+			con1.performThrow(20,50,3);
+		}
+		System.out.println(con1.tallyPointsAsPercentage());
 	}
 }
