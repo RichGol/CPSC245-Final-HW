@@ -289,12 +289,35 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 	private Timer tim;
 	private int clickStr;
 	
+	public void resetGame() {
+		objectsThrown = 0;
+		for (UserThrownObject uto : throwObjects) {
+			uto.setIsThrown(false);
+			uto.setPointsEarned(0);
+		}
+		mf.getScorePanel().resetAll();
+		mf.getTargetPanel().resetAll();
+		
+	}
+	public void loadGame(ArrayList<UserThrownObject> loadedObjects, ThrownObjectTarget loadedTarget) {
+		setThrowObjects(loadedObjects);
+		setTargetObject(loadedTarget);
+		mf.getTargetPanel().resetAll();
+		mf.getTargetPanel().setScale(loadedTarget.getScale());
+		mf.getScorePanel().setLastScore(0);
+		mf.getScorePanel().setRunningScore(0);
+		mf.getScorePanel().setRemThrows(3);
+		for (UserThrownObject uto : throwObjects) {
+			if (uto.getIsThrown()) {
+				mf.getScorePanel().updateScores(uto.getPointsEarned());
+			}
+		}
+	}
 	public ArrayList<UserThrownObject> getThrowObjects() {
 		return throwObjects;
 	}
 	public void setThrowObjects(ArrayList<UserThrownObject> loadedObjects) {
 		objectsThrown = 0;
-		ArrayList<Integer> scores = new ArrayList<Integer>();
 		for (int i = 0; i < loadedObjects.size(); i++) {
 			if (i < throwObjects.size()) {
 				throwObjects.set(i,loadedObjects.get(i));
@@ -304,11 +327,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 			if (loadedObjects.get(i).getIsThrown()) {
 				objectsThrown += 1;
 			}
-			scores.add(loadedObjects.get(i).getPointsEarned());
 		}
-		mf.getScorePanel().resetDisplay(scores);
-		mf.repaint();
-		
 	}
 	public ThrownObjectTarget getTargetObject() {
 		return targetObject;
@@ -447,14 +466,10 @@ class ScorePanel extends JPanel {
 	private int lastScore;
 	private int remThrows;
 	
-	public void resetDisplay(ArrayList<Integer> newScores) {
-		runningScore = 0;
-		lastScore = 0;
-		remThrows = 3;
-		for (Integer score : newScores) {
-			updateScores(score);
-			removeThrow();
-		}
+	public void resetAll() {
+		setLastScore(0);
+		setRunningScore(0);
+		setRemThrows(3);
 		repaint();
 	}
 	public void setLastScoreDisp() {
@@ -475,25 +490,25 @@ class ScorePanel extends JPanel {
 			runningScoreDisp.setText("Running Score: N/A");
 		}
 	}
-	public void addToRunningScore(int score) {
-		runningScore += score;
+	public void setRunningScore(int score) {
+		runningScore = score;
 		setRunningScoreDisp();
 	}
 	public void updateScores(int score) {
 		setLastScore(score);
-		addToRunningScore(score);
-		removeThrow();
+		setRunningScore(runningScore + score);
+		setRemThrows(remThrows - 1);
 	}
-	public void setRemThrowDisp() {
+	public void setRemThrowsDisp() {
 		if (remThrows >= 0) {
 			remThrowsDisp.setText(String.format("Remaining Throws: %d",remThrows));
 		} else {
 			remThrowsDisp.setText("Remaining Throws: None");
 		}
 	}
-	public void removeThrow() {
-		remThrows -= 1;
-		setRemThrowDisp();
+	public void setRemThrows(int attempts) {
+		remThrows = attempts;
+		setRemThrowsDisp();
 	}
 	
 	public ScorePanel() {
@@ -504,7 +519,7 @@ class ScorePanel extends JPanel {
 		add(runningScoreDisp);
 		add(remThrowsDisp);
 		remThrows = 3;
-		setRemThrowDisp();
+		setRemThrowsDisp();
 	}
 	public void paintComponent(Graphics g) {
 		super.paintComponent(g);
@@ -519,8 +534,9 @@ class TargetPanel extends JPanel {
 	private double scale;
 	private ArrayList<Integer> hitLocs; 
 
-	public void resetHitLocs() {
+	public void resetAll() {
 		hitLocs.clear();
+		repaint();
 	}
 	
 	public int getLeftX() {
@@ -620,12 +636,21 @@ class MainFrame extends JFrame {
 		bar.add(mnuFile);
 		
 		JFileChooser jfc = new JFileChooser();
-		FileFilter filter = new FileNameExtensionFilter("text","txt");
+		FileFilter filter = new FileNameExtensionFilter("Text","txt");
 		jfc.addChoosableFileFilter(filter);
-		filter = new FileNameExtensionFilter("binary","bin");
+		filter = new FileNameExtensionFilter("Binary","bin");
 		jfc.addChoosableFileFilter(filter);
 		
-		JMenu mnuSave = new JMenu("Save Options");
+		JMenu mnuGame = new JMenu("Game");
+		JMenuItem miNewGame = new JMenuItem("New Game");
+		miNewGame.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				ctrl.resetGame();
+			}
+		});
+		mnuGame.add(miNewGame);
+		
+		JMenu mnuSave = new JMenu("Save Game");
 		JMenuItem miSaveGame = new JMenuItem("Save Game (as .txt)");
 		miSaveGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
@@ -637,22 +662,23 @@ class MainFrame extends JFrame {
 		mnuSave.add(miSaveGame);
 		JMenuItem miSaveScoreList = new JMenuItem("Save High Scores (as .bin)");
 		//Add ActionListener, add to mnuSave
-		bar.add(mnuSave);
+		mnuGame.add(mnuSave);
 		
-		JMenu mnuLoad = new JMenu("Load Options");
+		JMenu mnuLoad = new JMenu("Load Game");
 		JMenuItem miLoadGame = new JMenuItem("Load Game");
 		miLoadGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (jfc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-					ctrl.setThrowObjects(ofc.loadThrowsFromTextFile(jfc.getSelectedFile()));
-					ctrl.setTargetObject(ofc.loadTargetFromTextFile(jfc.getSelectedFile(),ctrl.getMainFrame()));
+					ctrl.loadGame(ofc.loadThrowsFromTextFile(jfc.getSelectedFile()),ofc.loadTargetFromTextFile(jfc.getSelectedFile(),ctrl.getMainFrame()));
 				}
 			}
 		});
 		mnuLoad.add(miLoadGame);
 		JMenuItem miLoadScoreList = new JMenuItem("Load High Scores");
 		//Add ActionListener, add to mnuLoad
-		bar.add(mnuLoad);
+		
+		mnuGame.add(mnuLoad);
+		bar.add(mnuGame);
 		
 		JMenu mnuScale = new JMenu("Scale");
 		JMenuItem miLarge = new JMenuItem("Large (1 Meter Away)");
