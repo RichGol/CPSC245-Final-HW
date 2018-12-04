@@ -72,9 +72,11 @@ class UserThrownObject {
 	public int[] throwObject(int x, int y, int throwStrength) {
 		Random rnd = new Random();
 		double[] strDropVals = new double[10];
+		
 		for (int i = 0; i < 10; i++) {
 			strDropVals[i] = (1.16 - ((1.16-.39077)/9)*(i));
 		}
+		
 		/*	This list of values will be used to determine how much/little drop the throwing knife will
 		 * 		have in the game. The index of one is pulled based on how long the user holds the mouse
 		 * 		button down.
@@ -92,8 +94,10 @@ class UserThrownObject {
 		} else if (throwStrength < 0) {
 			throwStrength = 0;
 		}
-		int endY = (int)(y*strDropVals[throwStrength]+2);
+		int endY = (int)(y*strDropVals[throwStrength]);
 		int[] retArray = {endX, endY};
+		System.out.println(endX);
+		System.out.println(endY);
 		return retArray;
 	}
 	
@@ -143,14 +147,26 @@ class ThrownObjectTarget {
 		setLeftX(x);
 		setTopY(y);
 	}
-	public int getPointZone(int[] hitLoc) {
+	public int getPointZone(int[] hitLoc, double scale) {
 		int x = hitLoc[0];
 		int y = hitLoc[1];
 		int centerX = leftX+40;
 		int centerY = topY+40;
+		int ringWidth = (int)(4*scale);
 /*PRINT	System.out.println("Drop (" + x + " " + y + ")");
 		System.out.println("CENTER (" + centerX + " " + centerY + ")");
 		System.out.println("Top Left (" + leftX + " " + topY + ") -> Bottom Right (" + (leftX + 80) + " " + (topY + 80) + ")");		*/
+		
+		int score = 10;
+		for (int i = ringWidth; i < 40*scale; i+= ringWidth) {
+			if ((x>=centerX-i && x<=centerX+i) && (y>=centerY-i && y<=centerY+i)) {
+				return score;
+			} else {
+				score -= 1;
+			}
+		}
+		return 0;
+		/*	OLD SCORING ZONE SCORE
 		if ((x>=centerX-4 && x<=centerX+4) && (y>=centerY-4 && y<=centerY+4)){
 			return 10;
 		} else if ((x>=centerX-8 && x<=centerX+8) && (y>=centerY-8 && y<=centerY+8)){
@@ -174,9 +190,14 @@ class ThrownObjectTarget {
 		} else {
 			return 0;
 		}
+		*/
 	}
 }
-/*Controller class for interactions between UserThrownObject and ThrownObjectTarget*/
+/*Controller class for interactions between */
+class ObjectFileController {
+	private ArrayList<UserThrownObject> throwObjects;
+}
+/*Controller class for interactions between UserThrownObject, ThrownObjectTarget, and the MainFrame*/
 class ObjectTargetWindowController implements MouseListener,ActionListener {
 	private ArrayList<UserThrownObject> throwObjects;
 	private int objectsThrown;
@@ -190,7 +211,14 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		mf = new MainFrame(this);
 		mf.setVisible(true);
 		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY());
+		
+		//Gets the correct number of objects left to throw, for importing a saved game
 		objectsThrown = 0;
+		for (UserThrownObject tmpObj : throwObjects) {
+			if (tmpObj.getIsThrown()) {
+				objectsThrown += 1;
+			}
+		}
 		clickStr = 0;
 		tim = new Timer(200,this);
 		/*TESTING POINT HITS
@@ -226,15 +254,17 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		//Gets the user-thrown object, throws it, and calculates points earned
 		UserThrownObject tmpObj = throwObjects.get(objectsThrown);
 		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength);
-		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint));
+		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint,mf.getTargetPanel().getScale()));
 		tmpObj.setIsThrown(true);
 		
+		
+		
 		if (objectsThrown == 0) {
-			mf.getTargetPanel().setHit1(finalPoint);
+			mf.getTargetPanel().addHit(finalPoint);
 		} else if (objectsThrown == 1) {
-			mf.getTargetPanel().setHit2(finalPoint);
+			mf.getTargetPanel().addHit(finalPoint);
 		} else if (objectsThrown == 2) {
-			mf.getTargetPanel().setHit3(finalPoint);
+			mf.getTargetPanel().addHit(finalPoint);
 		}
 		
 /*PRINT	System.out.println(tmpObj);		*/
@@ -281,7 +311,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 /*PRINT		System.out.println("Release" + " " + clickStr);		*/
 			if (!(objectsThrown > (throwObjects.size()-1))) {
 				performThrow(e.getX(),e.getY(),clickStr);
-/*				System.out.println("THROW!");	*/
+/*PRINT			System.out.println("THROW!");	*/
 			} else {
 				JOptionPane.showMessageDialog(null,"Out of Throwing Knives!");	//Use to show final score & total, percentage
 			}
@@ -295,7 +325,6 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 } 
 /*View Class for Scores*/
 class ScorePanel extends JPanel {
-	private ArrayList<Integer> scores;
 	private JLabel lastScoreDisp;
 	private JLabel runningScoreDisp;
 	private JLabel remThrowsDisp;
@@ -362,12 +391,8 @@ class ScorePanel extends JPanel {
 class TargetPanel extends JPanel {
 	private int centerX;
 	private int centerY;
-	private int[] hit1;
-	private boolean drawHit1;
-	private int[] hit2;
-	private boolean drawHit2;
-	private int[] hit3;
-	private boolean drawHit3;
+	private double scale;
+	private ArrayList<Integer> hitLocs; 
 
 	public int getLeftX() {
 		return centerX-40;
@@ -375,36 +400,30 @@ class TargetPanel extends JPanel {
 	public int getTopY() {
 		return centerY-40;
 	}
-	public void setHit1(int[] point) {
-		hit1[0] = point[0];
-		hit1[1] = point[1];
-		drawHit1 = true;
+	public void addHit(int[] point) {
+		hitLocs.add(point[0] - (centerX-40));	//Makes X and Y relative to the target, so it scales
+		hitLocs.add(point[1] - (centerY-40));		//Target top-left is 0,0 to each hit
 		repaint();
 	}
-	public void setHit2(int[] point) {
-		hit2[0] = point[0];
-		hit2[1] = point[1];
-		drawHit2 = true;
-		repaint();
+	public double getScale() {
+		return scale;
 	}
-	public void setHit3(int[] point) {
-		hit3[0] = point[0];
-		hit3[1] = point[1];
-		drawHit3 = true;
+	public void setScale(double scaleVal) {
+		scale = scaleVal;
 		repaint();
 	}
 	public TargetPanel(ObjectTargetWindowController ctrl) {
 		addMouseListener(ctrl);
-		hit1 = new int[2];
-		hit2 = new int[2];
-		hit3 = new int[2];
-		drawHit1 = drawHit2 = drawHit3 = false;
+		hitLocs = new ArrayList<Integer>();
+		scale = 1;
 	}
 	public void paintComponent(Graphics g) {
 		super.paintComponent(g);
 		centerX = getWidth()/2;
 		centerY = getHeight()/2;
-		g.fillRect(centerX-40,centerY-40,80,80);
+		int width = (int)(80*scale);
+		int ringWidth = (int)(8*scale);
+		g.fillRect(centerX-(width/2),centerY-(width/2),width,width);
 		for (int i = 0; i < 11; i++) {
 			if (i < 2) {
 				g.setColor(Color.WHITE);
@@ -417,21 +436,14 @@ class TargetPanel extends JPanel {
 			} else {
 				g.setColor(Color.YELLOW);
 			}
-			g.fillOval((centerX-40)+4*i,(centerY-40)+4*i,80-(8*i),+80-(8*i));
+			g.fillOval((centerX-(width/2))+(ringWidth/2)*i,(centerY-(width/2))+(ringWidth/2)*i,width-(ringWidth*i),width-(ringWidth*i));
 			g.setColor(Color.BLACK);
-			g.drawOval((centerX-40)+4*i,(centerY-40)+4*i,80-(8*i),+80-(8*i));
+			g.drawOval((centerX-(width/2))+(ringWidth/2)*i,(centerY-(width/2))+(ringWidth/2)*i,width-(ringWidth*i),width-(ringWidth*i));
 		}
-		if (drawHit1) {
-			g.setColor(Color.GREEN);
-			g.fillRect(hit1[0]-3,hit1[1]-3,6,6);
-		}
-		if (drawHit2) {
-			g.setColor(Color.GREEN);
-			g.fillRect(hit2[0]-3,hit2[1]-3,6,6);
-		}
-		if (drawHit3) {
-			g.setColor(Color.GREEN);
-			g.fillRect(hit3[0]-3,hit3[1]-3,6,6);
+		for (int i = 0; i < hitLocs.size(); i+=2) {
+			g.setColor(new Color(0,150,0));
+/*PRINT		System.out.println(centerX + " " + hitLocs.get(i) + " " + centerY + " " + hitLocs.get(i+1));	*/
+			g.fillRect(((centerX-40)+hitLocs.get(i))-3,((centerY-40)+hitLocs.get(i+1))-3,6,6);
 		}
 	}
 }
@@ -477,6 +489,31 @@ class MainFrame extends JFrame {
 		});
 		mnuFile.add(miExit);
 		bar.add(mnuFile);
+		
+		JMenu mnuScale = new JMenu("Scale");
+		JMenuItem miLarge = new JMenuItem("Large (1 Meter Away)");
+		miLarge.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				tarPan.setScale(2);
+			}
+		});
+		mnuScale.add(miLarge);
+		JMenuItem miMedium = new JMenuItem("Medium (2 Meters Away)");
+		miMedium.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				tarPan.setScale(1);
+			}
+		});
+		mnuScale.add(miMedium);
+		JMenuItem miSmall = new JMenuItem("Small (3 Meters Away)");
+		miSmall.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				tarPan.setScale(0.5);
+			}
+		});
+		mnuScale.add(miSmall);
+		
+		bar.add(mnuScale);
 		setJMenuBar(bar);
 	}
 }
