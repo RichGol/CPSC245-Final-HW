@@ -1,6 +1,3 @@
-import java.util.ArrayList;
-import java.util.Random;
-
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Container;
@@ -10,6 +7,18 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.Graphics;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.Scanner;
+
+import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -65,6 +74,12 @@ class UserThrownObject {
 		setWeight(wt);
 		setPointsEarned(0);
 	}
+	public UserThrownObject(double len, double wt, int points, boolean thrown) {
+		setIsThrown(thrown);
+		setLength(len);
+		setWeight(wt);
+		setPointsEarned(points);
+	}
 	public UserThrownObject() {
 		this(7.8125,0);	//Sets an average throwing knife length in inches, sets the weight according to the length
 	}
@@ -74,7 +89,7 @@ class UserThrownObject {
 		double[] strDropVals = new double[10];
 		
 		for (int i = 0; i < 10; i++) {
-			strDropVals[i] = (1.16 - ((1.16-.39077)/9)*(i))/scale;
+			strDropVals[i] = (1.16 - ((1.16-.39077)/9)*i);
 		}
 		
 		/*	This list of values will be used to determine how much/little drop the throwing knife will
@@ -94,7 +109,7 @@ class UserThrownObject {
 		} else if (throwStrength < 0) {
 			throwStrength = 0;
 		}
-		int endY = (int)(y*strDropVals[throwStrength]);
+		int endY = (int)(y*strDropVals[throwStrength]/scale);
 		int[] retArray = {endX, endY};
 /*PRINT	System.out.println(endX);	*/
 /*PRINT	System.out.println(endY);	*/
@@ -102,7 +117,8 @@ class UserThrownObject {
 	}
 	
 	public String toString() {
-		return String.format("Length: %07.4f cm\nWeight: %07.4f ounces\n",length,weight);
+		//Formatted to save the game state as plaintext easily using PrintWriter
+		return String.format("%07.4f %07.4f %d %b",length,weight,pointsEarned,isThrown);
 	}
 }
 /*Model class for the target which the user will throw objects at in the game*/
@@ -110,6 +126,7 @@ class ThrownObjectTarget {
 	private double distance;	//Distance from player to target in meters, for easier calculations
 	private int leftX;
 	private int topY;	
+	private double scale;
 	
 	public double getDistance() {
 		return distance;
@@ -141,11 +158,21 @@ class ThrownObjectTarget {
 			topY = 0;
 		}
 	}
-	
-	public ThrownObjectTarget(int x, int y) {
+	public double getScale() {
+		return scale;
+	}
+	public void setScale(double scaleVal) {
+		if (scale == 0.5 || scale == 1.0 || scale == 2.0) {
+			scale = scaleVal;
+		} else {
+			scale = 1;
+		}
+	}
+	public ThrownObjectTarget(int x, int y, double scale) {
 		setDistance(2);	//Sets the distance to a reasonable 2 meters (~6.56 ft) from the player to the target
 		setLeftX(x);
 		setTopY(y);
+		setScale(scale);
 	}
 	public int getPointZone(int[] hitLoc, double scale) {
 		int x = hitLoc[0];
@@ -192,10 +219,66 @@ class ThrownObjectTarget {
 		}
 		*/
 	}
+	public String toString() {
+		//Formatted to save the game state as plain-text easily using PrintWriter
+		return String.format("%.1f",scale);
+	}
 }
-/*Controller class for interactions between */
+/*Controller class for interactions between ObjectTargetWindowController (Which represents the View Classes) and Files*/
 class ObjectFileController {
-	private ArrayList<UserThrownObject> throwObjects;
+	public boolean writeGameToTextFile(ArrayList<UserThrownObject> throwObjects, ThrownObjectTarget tar, File f) {
+		try {
+			PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(f)));
+			for (UserThrownObject thrObj : throwObjects) {
+				pw.println(thrObj);
+			}
+			pw.println(tar);
+			pw.close();
+			return true;
+		} catch (Exception ex) {
+			JOptionPane.showMessageDialog(null,"File Save Error -- Throws, Aborting!");
+			return false;
+		}
+	}
+	public ArrayList<UserThrownObject> loadThrowsFromTextFile(File f) {
+		try {
+			Scanner sc = new Scanner(f);
+			ArrayList<UserThrownObject> throwObjects = new ArrayList<UserThrownObject>();
+			String line;
+			String[] parts;
+			while (sc.hasNextLine()) {
+				line = sc.nextLine().trim();
+				if (line.contains(" ")) {
+					parts = line.split(" ");
+					throwObjects.add(new UserThrownObject(Double.parseDouble(parts[0]),Double.parseDouble(parts[1]),Integer.parseInt(parts[2]),Boolean.parseBoolean(parts[3])));
+				}
+			}
+			sc.close();
+			return throwObjects;
+		} catch (Exception ex) {
+			JOptionPane.showMessageDialog(null,"File Read Error -- Throws, Aborting!");
+			return null;
+		}
+	}
+	public ThrownObjectTarget loadTargetFromTextFile(File f, MainFrame mf) {
+		try {
+			Scanner sc = new Scanner(f);
+			ThrownObjectTarget tar = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY(),1);
+			String line;
+			while (sc.hasNextLine()) {
+				line = sc.nextLine().trim();
+				if (!line.contains(" ")) {
+					tar.setScale(Double.parseDouble(line));
+				}
+			}
+			sc.close();
+			return tar;
+		} catch (Exception ex) {
+			JOptionPane.showMessageDialog(null, "File Read Error -- Target, Aborting!");
+			return null;
+		}
+	}
+	
 }
 /*Controller class for interactions between UserThrownObject, ThrownObjectTarget, and the MainFrame*/
 class ObjectTargetWindowController implements MouseListener,ActionListener {
@@ -206,11 +289,42 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 	private Timer tim;
 	private int clickStr;
 	
-	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects) {
+	public ArrayList<UserThrownObject> getThrowObjects() {
+		return throwObjects;
+	}
+	public void setThrowObjects(ArrayList<UserThrownObject> loadedObjects) {
+		objectsThrown = 0;
+		ArrayList<Integer> scores = new ArrayList<Integer>();
+		for (int i = 0; i < loadedObjects.size(); i++) {
+			if (i < throwObjects.size()) {
+				throwObjects.set(i,loadedObjects.get(i));
+			} else {
+				throwObjects.add(loadedObjects.get(i));
+			}
+			if (loadedObjects.get(i).getIsThrown()) {
+				objectsThrown += 1;
+			}
+			scores.add(loadedObjects.get(i).getPointsEarned());
+		}
+		mf.getScorePanel().resetDisplay(scores);
+		mf.repaint();
+		
+	}
+	public ThrownObjectTarget getTargetObject() {
+		return targetObject;
+	}
+	public void setTargetObject(ThrownObjectTarget loadedTar) {
+		targetObject.setScale(loadedTar.getScale());
+	}
+	public MainFrame getMainFrame() {
+		return mf;
+	}
+	
+	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects, ObjectFileController txtGameSaver) {
 		this.throwObjects = throwObjects;
-		mf = new MainFrame(this);
+		mf = new MainFrame(this,txtGameSaver);
 		mf.setVisible(true);
-		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY());
+		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY(),mf.getTargetPanel().getScale());
 		
 		//Gets the correct number of objects left to throw, for importing a saved game
 		objectsThrown = 0;
@@ -251,21 +365,13 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 			//in case the window has been resized
 		targetObject.setLeftX(mf.getTargetPanel().getLeftX());
 		targetObject.setTopY(mf.getTargetPanel().getTopY());
+		targetObject.setScale(mf.getTargetPanel().getScale());	//Keeps the TargetPanel scale & the ThrownObjectTarget scale synced
 		//Gets the user-thrown object, throws it, and calculates points earned
 		UserThrownObject tmpObj = throwObjects.get(objectsThrown);
-		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength,mf.getTargetPanel().getScale());
-		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint,mf.getTargetPanel().getScale()));
+		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength,targetObject.getScale());
+		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint,targetObject.getScale()));
 		tmpObj.setIsThrown(true);
-		
-		
-		
-		if (objectsThrown == 0) {
-			mf.getTargetPanel().addHit(finalPoint);
-		} else if (objectsThrown == 1) {
-			mf.getTargetPanel().addHit(finalPoint);
-		} else if (objectsThrown == 2) {
-			mf.getTargetPanel().addHit(finalPoint);
-		}
+		mf.getTargetPanel().addHit(finalPoint);
 		
 /*PRINT	System.out.println(tmpObj);		*/
 /*PRINT	System.out.println("Points " + tmpObj.getPointsEarned());	*/
@@ -322,6 +428,15 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 	public void actionPerformed(ActionEvent e) {
 		clickStr += 1;
 	}
+	public String toString() {
+		//Takes care of saving the entire game-state in text form through delegation
+		String str = "";
+		for (UserThrownObject uto : throwObjects) {
+			str += uto.toString() + "/n";
+		}
+		str += targetObject.toString();
+		return str;
+	}
 } 
 /*View Class for Scores*/
 class ScorePanel extends JPanel {
@@ -332,6 +447,16 @@ class ScorePanel extends JPanel {
 	private int lastScore;
 	private int remThrows;
 	
+	public void resetDisplay(ArrayList<Integer> newScores) {
+		runningScore = 0;
+		lastScore = 0;
+		remThrows = 3;
+		for (Integer score : newScores) {
+			updateScores(score);
+			removeThrow();
+		}
+		repaint();
+	}
 	public void setLastScoreDisp() {
 		if (lastScore >= 0) {
 			lastScoreDisp.setText(String.format("Last Score: %d",lastScore));
@@ -394,6 +519,10 @@ class TargetPanel extends JPanel {
 	private double scale;
 	private ArrayList<Integer> hitLocs; 
 
+	public void resetHitLocs() {
+		hitLocs.clear();
+	}
+	
 	public int getLeftX() {
 		return centerX-40;
 	}
@@ -459,7 +588,7 @@ class MainFrame extends JFrame {
 	public ScorePanel getScorePanel() {
 		return scorePan;
 	}
-	public MainFrame(ObjectTargetWindowController ctrl) {
+	public MainFrame(ObjectTargetWindowController ctrl, ObjectFileController ofc) {
 		//basics
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setBounds(100,100,400,400);
@@ -489,6 +618,41 @@ class MainFrame extends JFrame {
 		});
 		mnuFile.add(miExit);
 		bar.add(mnuFile);
+		
+		JFileChooser jfc = new JFileChooser();
+		FileFilter filter = new FileNameExtensionFilter("text","txt");
+		jfc.addChoosableFileFilter(filter);
+		filter = new FileNameExtensionFilter("binary","bin");
+		jfc.addChoosableFileFilter(filter);
+		
+		JMenu mnuSave = new JMenu("Save Options");
+		JMenuItem miSaveGame = new JMenuItem("Save Game (as .txt)");
+		miSaveGame.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (jfc.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+					ofc.writeGameToTextFile(ctrl.getThrowObjects(),ctrl.getTargetObject(),jfc.getSelectedFile());
+				}
+			}
+		});
+		mnuSave.add(miSaveGame);
+		JMenuItem miSaveScoreList = new JMenuItem("Save High Scores (as .bin)");
+		//Add ActionListener, add to mnuSave
+		bar.add(mnuSave);
+		
+		JMenu mnuLoad = new JMenu("Load Options");
+		JMenuItem miLoadGame = new JMenuItem("Load Game");
+		miLoadGame.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (jfc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+					ctrl.setThrowObjects(ofc.loadThrowsFromTextFile(jfc.getSelectedFile()));
+					ctrl.setTargetObject(ofc.loadTargetFromTextFile(jfc.getSelectedFile(),ctrl.getMainFrame()));
+				}
+			}
+		});
+		mnuLoad.add(miLoadGame);
+		JMenuItem miLoadScoreList = new JMenuItem("Load High Scores");
+		//Add ActionListener, add to mnuLoad
+		bar.add(mnuLoad);
 		
 		JMenu mnuScale = new JMenu("Scale");
 		JMenuItem miLarge = new JMenuItem("Large (1 Meter Away)");
@@ -524,7 +688,8 @@ public class UIGameMVC {
 		throwObjectsHeld.add(new UserThrownObject());
 		throwObjectsHeld.add(new UserThrownObject(6,0));
 		throwObjectsHeld.add(new UserThrownObject());
-		ObjectTargetWindowController con1 = new ObjectTargetWindowController(throwObjectsHeld);
+		ObjectFileController ofc = new ObjectFileController();
+		ObjectTargetWindowController con1 = new ObjectTargetWindowController(throwObjectsHeld,ofc);
 /*PRINT	System.out.println(con1.tallyPointsAsPercentage());		*/
 	}
 }
