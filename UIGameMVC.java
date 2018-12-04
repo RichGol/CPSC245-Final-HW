@@ -69,12 +69,12 @@ class UserThrownObject {
 		this(7.8125,0);	//Sets an average throwing knife length in inches, sets the weight according to the length
 	}
 	
-	public int[] throwObject(int x, int y, int throwStrength) {
+	public int[] throwObject(int x, int y, int throwStrength, double scale) {
 		Random rnd = new Random();
 		double[] strDropVals = new double[10];
 		
 		for (int i = 0; i < 10; i++) {
-			strDropVals[i] = (1.16 - ((1.16-.39077)/9)*(i));
+			strDropVals[i] = (1.16 - ((1.16-.39077)/9)*(i))/scale;
 		}
 		
 		/*	This list of values will be used to determine how much/little drop the throwing knife will
@@ -96,8 +96,8 @@ class UserThrownObject {
 		}
 		int endY = (int)(y*strDropVals[throwStrength]);
 		int[] retArray = {endX, endY};
-		System.out.println(endX);
-		System.out.println(endY);
+/*PRINT	System.out.println(endX);	*/
+/*PRINT	System.out.println(endY);	*/
 		return retArray;
 	}
 	
@@ -253,7 +253,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		targetObject.setTopY(mf.getTargetPanel().getTopY());
 		//Gets the user-thrown object, throws it, and calculates points earned
 		UserThrownObject tmpObj = throwObjects.get(objectsThrown);
-		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength);
+		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength,mf.getTargetPanel().getScale());
 		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint,mf.getTargetPanel().getScale()));
 		tmpObj.setIsThrown(true);
 		
