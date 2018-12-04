@@ -34,6 +34,8 @@ class UserThrownObject {
 	private double length;	//Store it's length in centimeters for calculating weight
 	private double weight;	//Store it's weight in ounces for calculating drop
 	private int pointsEarned;	//Store the point zone it landed in on the target after being thrown
+	private int xFin;
+	private int yFin;
 	
 	public boolean getIsThrown() {
 		return isThrown;
@@ -67,18 +69,45 @@ class UserThrownObject {
 	public void setPointsEarned(int points) {
 		pointsEarned = points;
 	}
+	public int getXFin() {
+		return xFin;
+	}
+	public void setXFin(int xVal) {
+		if (xVal >= 0) {
+			xFin = xVal;
+		} else {
+			xFin = -10;
+		}
+	}
+	public int getYFin() {
+		return yFin;
+	}
+	public void setYFin(int yVal) {
+		if (yVal >=0) {
+			yFin = yVal;
+		} else {
+			yFin = -10;
+		}
+	}
+	public int[] getFinPoint() {
+		int[] tmpArray = {xFin,yFin};
+		return tmpArray;
+	}
+	public void setFinPoint(int[] point) {
+		setXFin(point[0]);
+		setYFin(point[1]);
+	}
 	
 	public UserThrownObject(double len, double wt) {	//Allows the user to set a custom length and weight for throwing knives,
-		setIsThrown(false);									//Their settings are still bound by the set functions
-		setLength(len);
-		setWeight(wt);
-		setPointsEarned(0);
+		this(len,wt,0,false);	//Their settings are still bound by the set functions							
 	}
 	public UserThrownObject(double len, double wt, int points, boolean thrown) {
 		setIsThrown(thrown);
 		setLength(len);
 		setWeight(wt);
 		setPointsEarned(points);
+		xFin = -10;
+		yFin = -10;
 	}
 	public UserThrownObject() {
 		this(7.8125,0);	//Sets an average throwing knife length in inches, sets the weight according to the length
@@ -118,7 +147,7 @@ class UserThrownObject {
 	
 	public String toString() {
 		//Formatted to save the game state as plaintext easily using PrintWriter
-		return String.format("%07.4f %07.4f %d %b",length,weight,pointsEarned,isThrown);
+		return String.format("%07.4f %07.4f %d %b %d %d",length,weight,pointsEarned,isThrown,xFin,yFin);
 	}
 }
 /*Model class for the target which the user will throw objects at in the game*/
@@ -251,6 +280,8 @@ class ObjectFileController {
 				if (line.contains(" ")) {
 					parts = line.split(" ");
 					throwObjects.add(new UserThrownObject(Double.parseDouble(parts[0]),Double.parseDouble(parts[1]),Integer.parseInt(parts[2]),Boolean.parseBoolean(parts[3])));
+					throwObjects.get(throwObjects.size()-1).setXFin(Integer.parseInt(parts[4]));
+					throwObjects.get(throwObjects.size()-1).setYFin(Integer.parseInt(parts[5]));
 				}
 			}
 			sc.close();
@@ -300,9 +331,9 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		
 	}
 	public void loadGame(ArrayList<UserThrownObject> loadedObjects, ThrownObjectTarget loadedTarget) {
+		mf.getTargetPanel().resetAll();
 		setThrowObjects(loadedObjects);
 		setTargetObject(loadedTarget);
-		mf.getTargetPanel().resetAll();
 		mf.getTargetPanel().setScale(loadedTarget.getScale());
 		mf.getScorePanel().setLastScore(0);
 		mf.getScorePanel().setRunningScore(0);
@@ -310,6 +341,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		for (UserThrownObject uto : throwObjects) {
 			if (uto.getIsThrown()) {
 				mf.getScorePanel().updateScores(uto.getPointsEarned());
+				mf.getTargetPanel().addHit(uto.getFinPoint());
 			}
 		}
 	}
@@ -344,14 +376,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		mf = new MainFrame(this,txtGameSaver);
 		mf.setVisible(true);
 		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY(),mf.getTargetPanel().getScale());
-		
-		//Gets the correct number of objects left to throw, for importing a saved game
 		objectsThrown = 0;
-		for (UserThrownObject tmpObj : throwObjects) {
-			if (tmpObj.getIsThrown()) {
-				objectsThrown += 1;
-			}
-		}
 		clickStr = 0;
 		tim = new Timer(200,this);
 		/*TESTING POINT HITS
@@ -388,6 +413,7 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		//Gets the user-thrown object, throws it, and calculates points earned
 		UserThrownObject tmpObj = throwObjects.get(objectsThrown);
 		int[] finalPoint = tmpObj.throwObject(x, y, throwStrength,targetObject.getScale());
+		tmpObj.setFinPoint(finalPoint);
 		tmpObj.setPointsEarned(targetObject.getPointZone(finalPoint,targetObject.getScale()));
 		tmpObj.setIsThrown(true);
 		mf.getTargetPanel().addHit(finalPoint);
@@ -582,7 +608,11 @@ class TargetPanel extends JPanel {
 				g.setColor(Color.YELLOW);
 			}
 			g.fillOval((centerX-(width/2))+(ringWidth/2)*i,(centerY-(width/2))+(ringWidth/2)*i,width-(ringWidth*i),width-(ringWidth*i));
-			g.setColor(Color.BLACK);
+			if (i == 3) {
+				g.setColor(Color.LIGHT_GRAY);
+			} else {
+				g.setColor(Color.BLACK);	
+			}
 			g.drawOval((centerX-(width/2))+(ringWidth/2)*i,(centerY-(width/2))+(ringWidth/2)*i,width-(ringWidth*i),width-(ringWidth*i));
 		}
 		for (int i = 0; i < hitLocs.size(); i+=2) {
@@ -608,7 +638,7 @@ class MainFrame extends JFrame {
 		//basics
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setBounds(100,100,400,400);
-		setTitle("Version beta 3 - GUI Version");
+		setTitle("--> Version beta 9 <--");
 		
 		//BorderLayout Configuration
 		Container c = getContentPane();
@@ -651,7 +681,7 @@ class MainFrame extends JFrame {
 		mnuGame.add(miNewGame);
 		
 		JMenu mnuSave = new JMenu("Save Game");
-		JMenuItem miSaveGame = new JMenuItem("Save Game (as .txt)");
+		JMenuItem miSaveGame = new JMenuItem("Save Game (.txt)");
 		miSaveGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (jfc.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
@@ -660,7 +690,7 @@ class MainFrame extends JFrame {
 			}
 		});
 		mnuSave.add(miSaveGame);
-		JMenuItem miSaveScoreList = new JMenuItem("Save High Scores (as .bin)");
+		JMenuItem miSaveScoreList = new JMenuItem("Save High Scores (.bin)");
 		//Add ActionListener, add to mnuSave
 		mnuGame.add(mnuSave);
 		
@@ -704,6 +734,20 @@ class MainFrame extends JFrame {
 		mnuScale.add(miSmall);
 		
 		bar.add(mnuScale);
+		
+		JMenu mnuMode = new JMenu("Mode");
+		JMenuItem miChallenge = new JMenuItem("Challenge Mode");
+		miChallenge.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				//Start Regular Mode --> ctrl.forceChallengeMode()
+			}
+		});
+		JMenuItem miEndless = new JMenuItem ("Endless Mode");
+		miEndless.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				//Start Endless Mode --> ctrl.forceEndlessMode()
+			}
+		});
 		setJMenuBar(bar);
 	}
 }
