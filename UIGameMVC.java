@@ -1,6 +1,7 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Container;
+import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
@@ -491,10 +492,12 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 					addScore = true;
 				}
 			}
-		} else {
+		} else {	//If scoreList.size() == 0, no scores, let them add one
 			addScore = true;
 		}
-		scoreList.add(new Score(name,tallyPointsRaw(),throwObjects.size()*10));
+		if (addScore && mode.equalsIgnoreCase("c")) {
+			scoreList.add(new Score(name,tallyPointsRaw(),throwObjects.size()*10));
+		}
 	}
 	public void getScoreList() {
 		if (scoreList.size() == 0) {
@@ -796,19 +799,19 @@ class EntryFrame extends JFrame {
 	
 	public EntryFrame(ObjectTargetWindowController ctrl) {
 		setDefaultCloseOperation(HIDE_ON_CLOSE);
-		setTitle("Score Addition Dialog");
-		setBounds(200,200,300,150);
-		setLayout(new GridLayout(2,1));
-		nameField = new JTextField("First-Name Last-Name");
+		setTitle("Add Score");
+		setLayout(new BorderLayout());
+		setBounds(200,200,250,90);
+		nameField = new JTextField("Name");
 		nameField.setToolTipText("Enter your name to save your score (and save the score-list before you quit!)");
-		add(nameField);
+		add(nameField,BorderLayout.CENTER);
 		JButton btnOK = new JButton("OK");
 		btnOK.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				ctrl.closeEntryFrame();
 			}
 		});
-		add(btnOK);
+		add(btnOK,BorderLayout.SOUTH);
 		setVisible(true);
 	} 
 }
@@ -885,7 +888,11 @@ class MainFrame extends JFrame {
 		JMenuItem miAddScore = new JMenuItem("Add My Score");
 		miAddScore.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				scoreEntryFrame = new EntryFrame(ctrl);
+				if (ctrl.getMode().equalsIgnoreCase("c")) {
+					scoreEntryFrame = new EntryFrame(ctrl);
+				} else {
+					infoPan.setMsg("Cannot add score in practice mode!");
+				}
 			}
 		});
 		mnuScore.add(miAddScore);
