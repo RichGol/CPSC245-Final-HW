@@ -6,6 +6,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.Graphics;
+import java.awt.GridLayout;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -18,6 +19,7 @@ import java.util.Scanner;
 
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -26,6 +28,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.Timer;
 
 /*Model class for objects to be thrown at the target in the game*/
@@ -253,6 +256,45 @@ class ThrownObjectTarget {
 		return String.format("%.1f",scale);
 	}
 }
+class Score {
+	private String name;
+	private double pointsEarned;
+	private double totalPoints;
+	
+	public String getName() {
+		return name;
+	}
+	public void setName(String newName) {
+		name = newName;
+	}
+	public double getPointsEarned() {
+		return pointsEarned;
+	}
+	public void setPointsEarned(double pts) {
+		pointsEarned = pts;
+	}
+	public double getTotalPoints() {
+		return totalPoints;
+	}
+	public void setTotalPoints(double pts) {
+		totalPoints = pts;
+	}
+	
+	public Score(String name, double ptsEarned, double totalPts) {
+		setName(name);
+		setPointsEarned(ptsEarned);
+		setTotalPoints(totalPts);
+	}
+	public Score(String name) {
+		this(name,0,0);
+	}
+	public Score(int ptsEarned, int totalPts) {
+		this("Unknown",ptsEarned,totalPts);
+	}
+	public String toString() {
+		return String.format("%s %.2f %.2f %.2f",name,pointsEarned,totalPoints,(double)(pointsEarned)/(double)(totalPoints));
+	}
+}
 /*Controller class for interactions between ObjectTargetWindowController (Which represents the View Classes) and Files*/
 class ObjectFileController {
 	public boolean writeGameToTextFile(ArrayList<UserThrownObject> throwObjects, ThrownObjectTarget tar, File f) {
@@ -314,20 +356,30 @@ class ObjectFileController {
 /*Controller class for interactions between UserThrownObject, ThrownObjectTarget, and the MainFrame*/
 class ObjectTargetWindowController implements MouseListener,ActionListener {
 	private ArrayList<UserThrownObject> throwObjects;
+	private ArrayList<Score> scoreList;
 	private int objectsThrown;
 	private ThrownObjectTarget targetObject;
 	private MainFrame mf;
 	private Timer tim;
 	private int clickStr;
+	private String mode;
 	
-	public void resetGame() {
+	public void resetGame(String mode) {
 		objectsThrown = 0;
 		for (UserThrownObject uto : throwObjects) {
 			uto.setIsThrown(false);
 			uto.setPointsEarned(0);
 		}
+		while (throwObjects.size() > 3) {
+			throwObjects.remove(throwObjects.size()-1);
+		}
 		mf.getScorePanel().resetAll();
 		mf.getTargetPanel().resetAll();
+		if (mode.equalsIgnoreCase("c")) {
+			mf.getInfoPanel().setMsg("Challenge Mode");
+		} else if (mode.equalsIgnoreCase("p")) {
+			mf.getInfoPanel().setMsg("Practice Mode");
+		}
 		
 	}
 	public void loadGame(ArrayList<UserThrownObject> loadedObjects, ThrownObjectTarget loadedTarget) {
@@ -338,6 +390,17 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		mf.getScorePanel().setLastScore(0);
 		mf.getScorePanel().setRunningScore(0);
 		mf.getScorePanel().setRemThrows(3);
+		if (mode.equalsIgnoreCase("c")) {	//Prevent people from importing practice saves into challenge mode & glitching a score
+			mf.getInfoPanel().setMsg("Challenge Mode");
+			if (throwObjects.size() > 3) {
+				mf.getInfoPanel().setMsg("Practice Save in Challenge Mode - last 3 throws only");	//59 lowercase m's
+			}
+			while (throwObjects.size() > 3) {	//We're allowing them to bring over the last three throws from their practice save.
+				throwObjects.remove(0);
+			}
+		} else {
+			mf.getInfoPanel().setMsg("Practice Mode");
+		}
 		for (UserThrownObject uto : throwObjects) {
 			if (uto.getIsThrown()) {
 				mf.getScorePanel().updateScores(uto.getPointsEarned());
@@ -370,15 +433,31 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 	public MainFrame getMainFrame() {
 		return mf;
 	}
+	public String getMode() {
+		return mode;
+	}
+	public void setMode(String modeStr) {
+		if (modeStr.equalsIgnoreCase("p")) {
+			mode = "p";
+			mf.getScorePanel().configurePracticeMode();
+		} else if (modeStr.equalsIgnoreCase("c")) {
+			mode = "c";
+			mf.getScorePanel().configureChallengeMode();
+		} else {
+			mode = "c";
+		}
+	}
 	
 	public ObjectTargetWindowController(ArrayList<UserThrownObject> throwObjects, ObjectFileController txtGameSaver) {
 		this.throwObjects = throwObjects;
+		scoreList = new ArrayList<Score>();
 		mf = new MainFrame(this,txtGameSaver);
 		mf.setVisible(true);
 		targetObject = new ThrownObjectTarget(mf.getTargetPanel().getLeftX(),mf.getTargetPanel().getTopY(),mf.getTargetPanel().getScale());
 		objectsThrown = 0;
 		clickStr = 0;
 		tim = new Timer(200,this);
+		setMode("");
 		/*TESTING POINT HITS
 		int[] testArray = {192,156};
 		System.out.println(targetObject.getPointZone(testArray)); //10
@@ -403,6 +482,26 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		testArray[0] = 148;
 		System.out.println(targetObject.getPointZone(testArray)); //0
 		*/
+	}
+	public void addScore(String name) {
+		boolean addScore = false;
+		if (scoreList.size() > 0) {
+			for (Score s : scoreList) {
+				if ((s.getPointsEarned() < tallyPointsRaw()) && (s.getTotalPoints() >= throwObjects.size()*10)) {	//If their score is better than their last score or its a different player
+					addScore = true;
+				}
+			}
+		} else {
+			addScore = true;
+		}
+		scoreList.add(new Score(name,tallyPointsRaw(),throwObjects.size()*10));
+	}
+	public void getScoreList() {
+		if (scoreList.size() == 0) {
+			mf.getInfoPanel().setMsg("Must add a score first!");
+		} else {
+			mf.getInfoPanel().setMsg(scoreList.get(scoreList.size()-1).toString());
+		}
 	}
 	public void performThrow(int x, int y, int throwStrength) {
 		//Resets the top-left corner of the targetObject in the model class
@@ -444,6 +543,12 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 		}
 		return pointCount;
 	}
+	public void closeEntryFrame() {
+		if (mf.getScoreEntryFrame().wantsToSave() && mode.equalsIgnoreCase("c")) {
+			addScore(mf.getScoreEntryFrame().getNameField());
+		}
+		mf.getScoreEntryFrame().setVisible(false);
+	}
 	
 	//MouseListener Functions
 	public void mouseEntered(MouseEvent e) {}
@@ -463,8 +568,12 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 			if (!(objectsThrown > (throwObjects.size()-1))) {
 				performThrow(e.getX(),e.getY(),clickStr);
 /*PRINT			System.out.println("THROW!");	*/
+			} else if (objectsThrown == throwObjects.size() && mode.equalsIgnoreCase("p")) {
+				throwObjects.add(new UserThrownObject());
+				performThrow(e.getX(),e.getY(),clickStr);
 			} else {
-				JOptionPane.showMessageDialog(null,"Out of Throwing Knives!");	//Use to show final score & total, percentage
+				mf.getInfoPanel().setMsg("Out of Throwing Knives!");
+//				JOptionPane.showMessageDialog(null,"Out of Throwing Knives!");	//Use to show final score & total, percentage
 			}
 			
 		}
@@ -535,6 +644,14 @@ class ScorePanel extends JPanel {
 	public void setRemThrows(int attempts) {
 		remThrows = attempts;
 		setRemThrowsDisp();
+	}
+	public void configurePracticeMode() {
+		remThrowsDisp.setVisible(false);
+		repaint();
+	}
+	public void configureChallengeMode() {
+		remThrowsDisp.setVisible(true);
+		repaint();
 	}
 	
 	public ScorePanel() {
@@ -622,17 +739,97 @@ class TargetPanel extends JPanel {
 		}
 	}
 }
-
+class InfoPanel extends JPanel {
+	private String msg;
+	private JLabel msgDisp;
+	private JButton btnOK;
+	private String prevMsg;
+	
+	public void setMsg(String str) {
+		prevMsg = msg;
+		msg = str;
+		setMsgDisp();
+		if (!(msg.equalsIgnoreCase("Challenge Mode") || msg.equalsIgnoreCase("Practice Mode"))) {
+			setBtnOKFlag();
+		}
+	}
+	public void setMsgDisp() {
+		msgDisp.setText(msg);
+		repaint();
+	}
+	public void setBtnOKFlag() {
+		btnOK.setVisible(true);
+	}
+	
+	
+	public InfoPanel() {
+		msg = "Challenge Mode";
+		msgDisp = new JLabel(msg);
+		btnOK = new JButton("OK");
+		btnOK.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				setMsg(prevMsg);
+				btnOK.setVisible(false);
+			}
+		});
+		add(msgDisp);
+		add(btnOK);
+		btnOK.setVisible(false);
+	}
+}
+class EntryFrame extends JFrame {
+	private JTextField nameField;
+	
+	public String getNameField() {
+		return nameField.getText();
+	}
+	public boolean wantsToSave() {
+		if (nameField.getText().equals("")) {
+			return true;
+		} else {
+			if (nameField.getText().equalsIgnoreCase("First-Name Last-Name")) {
+				return false;
+			}
+			return true;
+		}
+	}
+	
+	public EntryFrame(ObjectTargetWindowController ctrl) {
+		setDefaultCloseOperation(HIDE_ON_CLOSE);
+		setTitle("Score Addition Dialog");
+		setBounds(200,200,300,150);
+		setLayout(new GridLayout(2,1));
+		nameField = new JTextField("First-Name Last-Name");
+		nameField.setToolTipText("Enter your name to save your score (and save the score-list before you quit!)");
+		add(nameField);
+		JButton btnOK = new JButton("OK");
+		btnOK.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				ctrl.closeEntryFrame();
+			}
+		});
+		add(btnOK);
+		setVisible(true);
+	} 
+}
 /*View Class for displaying the UI window*/
 class MainFrame extends JFrame {
 	private TargetPanel tarPan;
 	private ScorePanel scorePan;
+	private InfoPanel infoPan;
+	private EntryFrame scoreEntryFrame;
 	
 	public TargetPanel getTargetPanel() {
 		return tarPan;
 	}
 	public ScorePanel getScorePanel() {
 		return scorePan;
+	}
+	public InfoPanel getInfoPanel() {
+		return infoPan;
+	}
+	public EntryFrame getScoreEntryFrame() {
+		return scoreEntryFrame;
 	}
 	public MainFrame(ObjectTargetWindowController ctrl, ObjectFileController ofc) {
 		//basics
@@ -651,6 +848,10 @@ class MainFrame extends JFrame {
 			//BorderLayout.CENTER
 		tarPan = new TargetPanel(ctrl);
 		c.add(tarPan,BorderLayout.CENTER);
+		
+			//BorderLayout.NORTH
+		infoPan = new InfoPanel();
+		c.add(infoPan,BorderLayout.NORTH);
 		
 		//menu
 		JMenuBar bar = new JMenuBar();
@@ -675,13 +876,30 @@ class MainFrame extends JFrame {
 		JMenuItem miNewGame = new JMenuItem("New Game");
 		miNewGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				ctrl.resetGame();
+				ctrl.resetGame(ctrl.getMode());
 			}
 		});
 		mnuGame.add(miNewGame);
 		
-		JMenu mnuSave = new JMenu("Save Game");
+		JMenu mnuScore = new JMenu("Scores");
+		JMenuItem miAddScore = new JMenuItem("Add My Score");
+		miAddScore.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				scoreEntryFrame = new EntryFrame(ctrl);
+			}
+		});
+		mnuScore.add(miAddScore);
+		
+		JMenuItem miShowScore = new JMenuItem("Show My Top Score");
+		miShowScore.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				ctrl.getScoreList();
+			}
+		});
+		mnuScore.add(miShowScore);
+		
 		JMenuItem miSaveGame = new JMenuItem("Save Game (.txt)");
+		miSaveGame.setToolTipText("Save the game to resume later");
 		miSaveGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (jfc.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
@@ -689,13 +907,14 @@ class MainFrame extends JFrame {
 				}
 			}
 		});
-		mnuSave.add(miSaveGame);
-		JMenuItem miSaveScoreList = new JMenuItem("Save High Scores (.bin)");
+		mnuGame.add(miSaveGame);
+		JMenuItem miSaveScoreList = new JMenuItem("Save Scores List (.bin)");
+		miSaveScoreList.setToolTipText("Save the score list");
 		//Add ActionListener, add to mnuSave
-		mnuGame.add(mnuSave);
+		mnuScore.add(miSaveScoreList);
 		
-		JMenu mnuLoad = new JMenu("Load Game");
-		JMenuItem miLoadGame = new JMenuItem("Load Game");
+		JMenuItem miLoadGame = new JMenuItem("Load Game (.txt)");
+		miLoadGame.setToolTipText("Load a game started earlier");
 		miLoadGame.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (jfc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
@@ -703,12 +922,13 @@ class MainFrame extends JFrame {
 				}
 			}
 		});
-		mnuLoad.add(miLoadGame);
-		JMenuItem miLoadScoreList = new JMenuItem("Load High Scores");
+		mnuGame.add(miLoadGame);
+		JMenuItem miLoadScoreList = new JMenuItem("Load Scores List (.bin)");
+		miLoadScoreList.setToolTipText("Load a score list to compete against");
 		//Add ActionListener, add to mnuLoad
-		
-		mnuGame.add(mnuLoad);
+		mnuScore.add(miLoadScoreList);
 		bar.add(mnuGame);
+		bar.add(mnuScore);
 		
 		JMenu mnuScale = new JMenu("Scale");
 		JMenuItem miLarge = new JMenuItem("Large (1 Meter Away)");
@@ -739,15 +959,20 @@ class MainFrame extends JFrame {
 		JMenuItem miChallenge = new JMenuItem("Challenge Mode");
 		miChallenge.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				//Start Regular Mode --> ctrl.forceChallengeMode()
+				ctrl.resetGame("c");
+				ctrl.setMode("c");
 			}
 		});
-		JMenuItem miEndless = new JMenuItem ("Endless Mode");
+		mnuMode.add(miChallenge);
+		JMenuItem miEndless = new JMenuItem ("Practice Mode");
 		miEndless.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				//Start Endless Mode --> ctrl.forceEndlessMode()
+				ctrl.resetGame("p");
+				ctrl.setMode("p");
 			}
 		});
+		mnuMode.add(miEndless);
+		bar.add(mnuMode);
 		setJMenuBar(bar);
 	}
 }
