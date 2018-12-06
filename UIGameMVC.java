@@ -1,18 +1,21 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Container;
-import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.Graphics;
-import java.awt.GridLayout;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
+import java.io.Serializable;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -257,7 +260,7 @@ class ThrownObjectTarget {
 		return String.format("%.1f",scale);
 	}
 }
-class Score {
+class Score implements Serializable {
 	private String name;
 	private double pointsEarned;
 	private double totalPoints;
@@ -334,6 +337,27 @@ class ObjectFileController {
 			return null;
 		}
 	}
+	public boolean writeScoreListToFile(ObjectTargetWindowController ctrl, File f) {
+		try {
+			ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(f));
+			oos.writeObject(ctrl.getScoreList());
+			oos.close();
+			return true;
+		} catch (Exception ex) {
+			return false;
+		}
+	}
+	@SuppressWarnings("unchecked")
+	public ArrayList<Score> loadScoreListFromFile(File f) {
+		try {
+			ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f));
+			ArrayList<Score> loadedScoreList = (ArrayList<Score>)(ois.readObject());
+			ois.close();
+			return loadedScoreList;
+		} catch (Exception ex) {
+			return null;
+		}
+	}
 	public ThrownObjectTarget loadTargetFromTextFile(File f, MainFrame mf) {
 		try {
 			Scanner sc = new Scanner(f);
@@ -352,7 +376,6 @@ class ObjectFileController {
 			return null;
 		}
 	}
-	
 }
 /*Controller class for interactions between UserThrownObject, ThrownObjectTarget, and the MainFrame*/
 class ObjectTargetWindowController implements MouseListener,ActionListener {
@@ -408,6 +431,12 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 				mf.getTargetPanel().addHit(uto.getFinPoint());
 			}
 		}
+	}
+	public void setScoreList(ArrayList<Score> loadedScores) {
+		scoreList = loadedScores;
+	}
+	public ArrayList<Score> getScoreList() {
+		return scoreList;
 	}
 	public ArrayList<UserThrownObject> getThrowObjects() {
 		return throwObjects;
@@ -499,11 +528,19 @@ class ObjectTargetWindowController implements MouseListener,ActionListener {
 			scoreList.add(new Score(name,tallyPointsRaw(),throwObjects.size()*10));
 		}
 	}
-	public void getScoreList() {
+	public void checkScoreList() {
+		double maxScore = 0;
+		int maxScoreIndex = scoreList.size()-1;
 		if (scoreList.size() == 0) {
 			mf.getInfoPanel().setMsg("Must add a score first!");
 		} else {
-			mf.getInfoPanel().setMsg(scoreList.get(scoreList.size()-1).toString());
+			for (int i = 0; i < scoreList.size(); i++) {
+				if (scoreList.get(i).getPointsEarned() > maxScore) {
+					maxScore = scoreList.get(i).getPointsEarned();
+					maxScoreIndex = i;
+				}
+			}
+			mf.getInfoPanel().setMsg(scoreList.get(maxScoreIndex).toString());
 		}
 	}
 	public void performThrow(int x, int y, int throwStrength) {
@@ -886,6 +923,7 @@ class MainFrame extends JFrame {
 		
 		JMenu mnuScore = new JMenu("Scores");
 		JMenuItem miAddScore = new JMenuItem("Add My Score");
+		miAddScore.setToolTipText("Add your score to the list of scores, saved with 'Save Scores List'");
 		miAddScore.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				if (ctrl.getMode().equalsIgnoreCase("c")) {
@@ -897,10 +935,10 @@ class MainFrame extends JFrame {
 		});
 		mnuScore.add(miAddScore);
 		
-		JMenuItem miShowScore = new JMenuItem("Show My Top Score");
+		JMenuItem miShowScore = new JMenuItem("Show Top Score");
 		miShowScore.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				ctrl.getScoreList();
+				ctrl.checkScoreList();
 			}
 		});
 		mnuScore.add(miShowScore);
@@ -917,7 +955,13 @@ class MainFrame extends JFrame {
 		mnuGame.add(miSaveGame);
 		JMenuItem miSaveScoreList = new JMenuItem("Save Scores List (.bin)");
 		miSaveScoreList.setToolTipText("Save the score list");
-		//Add ActionListener, add to mnuSave
+		miSaveScoreList.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (jfc.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+					ofc.writeScoreListToFile(ctrl, jfc.getSelectedFile());
+				}
+			}
+		});
 		mnuScore.add(miSaveScoreList);
 		
 		JMenuItem miLoadGame = new JMenuItem("Load Game (.txt)");
@@ -932,7 +976,13 @@ class MainFrame extends JFrame {
 		mnuGame.add(miLoadGame);
 		JMenuItem miLoadScoreList = new JMenuItem("Load Scores List (.bin)");
 		miLoadScoreList.setToolTipText("Load a score list to compete against");
-		//Add ActionListener, add to mnuLoad
+		miLoadScoreList.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (jfc.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+					ctrl.setScoreList(ofc.loadScoreListFromFile(jfc.getSelectedFile()));
+				}
+			}
+		});
 		mnuScore.add(miLoadScoreList);
 		bar.add(mnuGame);
 		bar.add(mnuScore);
